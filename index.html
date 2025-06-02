@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestão de Projetos TI</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* === CSS fornecido (resumido para brevidade, inclui estilo de header, formulário, tabela, botões, etc.) === */
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f8fa;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background-color: #ffffff;
+      color: #007e71;
+      padding: 10px 25px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      border-bottom: 1px solid #e0f2f1;
+      border-radius: 0 0 12px 12px;
+      height: 60px;
+    }
+    .titulo-central {
+      font-size: 20px;
+      font-weight: bold;
+      color: #007e71;
+    }
+    main {
+      flex: 1;
+      padding: 20px 30px;
+      max-width: 1200px;
+      margin: auto;
+      width: 100%;
+    }
+    form {
+      background: white;
+      padding: 20px 30px;
+      border-radius: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 30px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px 20px;
+      background-color: #00c9a7;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #009d81;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #ccc;
+      text-align: left;
+    }
+    th {
+      background-color: #f0fdf9;
+      color: #007e71;
+    }
+    .actions button {
+      margin-right: 5px;
+      background-color: #007e71;
+    }
+    .filters {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    canvas {
+      max-width: 600px;
+      margin-top: 30px;
+    }
+    #modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+#modal {
+  background: white;
+  max-width: 600px;
+  width: 90%;
+  padding: 30px;
+  border-radius: 12px;
+  position: relative;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+#modal h2 {
+  color: #007e71;
+  margin-top: 0;
+}
+#modal-content p {
+  margin: 8px 0;
+  font-size: 15px;
+}
+.close-btn {
+  position: absolute;
+  right: 15px;
+  top: 10px;
+  font-size: 24px;
+  background: none;
+  border: none;
+  color: #777;
+  cursor: pointer;
+}
+
+  </style>
+</head>
+<body>
+  <header>
+    <div class="titulo-central">Sistema de Projetos</div>
+  </header>
+
+   <button onclick="imprimirProjetos()">🖨️ Imprimir todos os projetos</button>
+
+  <main>
+    <form id="formProjeto">
+      <h2>Cadastrar Projeto</h2>
+      <label>Nome do Projeto</label>
+      <input type="text" id="nome" required />
+
+      <label>Responsável</label>
+      <input type="text" id="responsavel" required />
+
+      <label>Programador</label>
+      <input type="text" id="programador" required />
+
+      <label>Escopo</label>
+      <textarea id="escopo"></textarea>
+
+      <label>Data de Início</label>
+      <input type="date" id="data" required />
+
+      <label>Prazo</label>
+      <input type="date" id="prazo" required />
+
+      <label>Status</label>
+      <select id="status">
+        <option>Em andamento</option>
+        <option>Finalizado</option>
+        <option>Pendente</option>
+      </select>
+
+      <button type="submit">Salvar Projeto</button>
+    </form>
+
+    <div class="filters">
+      <input type="text" id="filtroNome" placeholder="Filtrar por projeto..." />
+      <input type="text" id="filtroResp" placeholder="Filtrar por responsável..." />
+      <input type="text" id="filtroProg" placeholder="Filtrar por programador..." />
+    </div>
+
+    <table id="tabelaProjetos">
+      <thead>
+        <tr>
+          <th>Projeto</th>
+          <th>Responsável</th>
+          <th>Programador</th>
+          <th>Status</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <canvas id="graficoStatus"></canvas>
+  </main>
+<script>
+  let projetos = [];
+
+  function atualizarTabela() {
+    const tbody = document.querySelector("#tabelaProjetos tbody");
+    tbody.innerHTML = "";
+
+    const nomeFiltro = document.getElementById("filtroNome").value.toLowerCase();
+    const respFiltro = document.getElementById("filtroResp").value.toLowerCase();
+    const progFiltro = document.getElementById("filtroProg").value.toLowerCase();
+
+    projetos.filter(p =>
+      p.nome.toLowerCase().includes(nomeFiltro) &&
+      p.responsavel.toLowerCase().includes(respFiltro) &&
+      p.programador.toLowerCase().includes(progFiltro)
+    ).forEach((p, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${p.nome}</td>
+        <td>${p.responsavel}</td>
+        <td>${p.programador}</td>
+        <td>${p.status}</td>
+        <td class="actions">
+  <button onclick="editarProjeto(${i})">Editar</button>
+  <button onclick="excluirProjeto(${i})">Excluir</button>
+  <button onclick="finalizarProjeto(${i})">Finalizar</button>
+  <button onclick="gerenciarFases(${i})">Fases</button>
+  <button onclick="visualizarProjeto(${i})">Visualizar</button>
+</td>`;
+      tbody.appendChild(tr);
+    });
+
+    atualizarGrafico();
+  }
+
+  function atualizarGrafico() {
+    const ctx = document.getElementById("graficoStatus").getContext("2d");
+    const statusCount = { "Em andamento": 0, "Finalizado": 0, "Pendente": 0 };
+    projetos.forEach(p => statusCount[p.status]++);
+
+    if (window.grafico) window.grafico.destroy();
+    window.grafico = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: Object.keys(statusCount),
+        datasets: [{
+          label: "Projetos por status",
+          data: Object.values(statusCount),
+          backgroundColor: ["#00c9a7", "#007e71", "#f0ad4e"]
+        }]
+      }
+    });
+  }
+
+  document.getElementById("formProjeto").addEventListener("submit", function (e) {
+    e.preventDefault();
+    const projeto = {
+      nome: document.getElementById("nome").value,
+      responsavel: document.getElementById("responsavel").value,
+      programador: document.getElementById("programador").value,
+      escopo: document.getElementById("escopo").value,
+      data: document.getElementById("data").value,
+      prazo: document.getElementById("prazo").value,
+      status: document.getElementById("status").value,
+      fases: []
+    };
+    if (this.dataset.editando !== undefined) {
+      projetos[this.dataset.editando] = projeto;
+      delete this.dataset.editando;
+    } else {
+      projetos.push(projeto);
+    }
+    this.reset();
+    atualizarTabela();
+  });
+
+  function editarProjeto(index) {
+    const p = projetos[index];
+    document.getElementById("nome").value = p.nome;
+    document.getElementById("responsavel").value = p.responsavel;
+    document.getElementById("programador").value = p.programador;
+    document.getElementById("escopo").value = p.escopo;
+    document.getElementById("data").value = p.data;
+    document.getElementById("prazo").value = p.prazo;
+    document.getElementById("status").value = p.status;
+     document.getElementById("formProjeto").dataset.editando = index;
+    window.scrollTo(0, 0);
+  }
+
+  function excluirProjeto(index) {
+    if (confirm("Deseja excluir este projeto?")) {
+      projetos.splice(index, 1);
+      atualizarTabela();
+    }
+  }
+
+  function finalizarProjeto(index) {
+    if (confirm("Deseja finalizar este projeto?")) {
+      projetos[index].status = "Finalizado";
+      atualizarTabela();
+    }
+  }
+
+  // Filtros
+  document.getElementById("filtroNome").addEventListener("input", atualizarTabela);
+  document.getElementById("filtroResp").addEventListener("input", atualizarTabela);
+  document.getElementById("filtroProg").addEventListener("input", atualizarTabela);
+
+  // Gerenciar fases
+  function gerenciarFases(index) {
+    const nome = projetos[index].nome;
+    const fase = prompt(`Adicionar nova fase ao projeto "${nome}":`);
+    if (fase) {
+      projetos[index].fases.push(fase);
+      alert(`Fase adicionada com sucesso!`);
+    }
+    let resumo = projetos[index].fases.length > 0
+      ? projetos[index].fases.map((f, i) => `${i + 1}. ${f}`).join('\n')
+      : "Nenhuma fase registrada.";
+    alert(`Fases atuais do projeto "${nome}":\n\n${resumo}`);
+  }
+
+  // Imprimir todos os projetos
+  function imprimirProjetos() {
+  const janela = window.open('', '', 'width=1000,height=800');
+  const dataHoje = new Date().toLocaleDateString();
+
+  let html = `
+    <html><head>
+    <title>Relatório de Projetos</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 30px; }
+      h1 { text-align: center; color: #007e71; }
+      .header { text-align: right; font-size: 14px; color: #888; margin-bottom: 20px; }
+      .projeto { border: 1px solid #ccc; border-radius: 10px; padding: 20px; margin-bottom: 25px; }
+      .projeto h3 { margin-top: 0; color: #007e71; }
+      .fases ul { padding-left: 20px; }
+      .label { font-weight: bold; }
+    </style>
+    </head><body>
+    <h1>Relatório de Projetos - TI</h1>
+    <div class="header">Gerado em: ${dataHoje}</div>
+  `;
+
+  projetos.forEach((p, i) => {
+    html += `
+      <div class="projeto">
+        <h3>${i + 1}. ${p.nome}</h3>
+        <p><span class="label">Responsável:</span> ${p.responsavel}</p>
+        <p><span class="label">Programador:</span> ${p.programador}</p>
+        <p><span class="label">Escopo:</span> ${p.escopo}</p>
+        <p><span class="label">Data de Início:</span> ${p.data}</p>
+        <p><span class="label">Prazo:</span> ${p.prazo}</p>
+        <p><span class="label">Status:</span> ${p.status}</p>
+        <div class="fases">
+          <p><span class="label">Fases:</span></p>
+          ${p.fases.length > 0 ? "<ul>" + p.fases.map(f => `<li>${f}</li>`).join("") + "</ul>" : "<i>Nenhuma fase cadastrada.</i>"}
+        </div>
+      </div>
+    `;
+  });
+
+  html += "</body></html>";
+  janela.document.write(html);
+  janela.document.close();
+  janela.print();
+}
+
+
+  function visualizarProjeto(index) {
+  const p = projetos[index];
+  const content = document.getElementById("modal-content");
+  content.innerHTML = `
+    <p><strong>Projeto:</strong> ${p.nome}</p>
+    <p><strong>Responsável:</strong> ${p.responsavel}</p>
+    <p><strong>Programador:</strong> ${p.programador}</p>
+    <p><strong>Escopo:</strong><br>${p.escopo || "<i>Não informado</i>"}</p>
+    <p><strong>Data de Início:</strong> ${p.data}</p>
+    <p><strong>Prazo:</strong> ${p.prazo}</p>
+    <p><strong>Status:</strong> ${p.status}</p>
+    <p><strong>Fases:</strong><br>
+      ${p.fases.length > 0 ? "<ul>" + p.fases.map(f => `<li>${f}</li>`).join("") + "</ul>" : "Nenhuma fase cadastrada."}
+    </p>
+  `;
+  document.getElementById("modal-overlay").style.display = "flex";
+}
+
+function fecharModal() {
+  document.getElementById("modal-overlay").style.display = "none";
+}
+
+  function fazerLogin() {
+  const username = document.getElementById("username").value;
+  if (username) {
+    localStorage.setItem("usuario", username);
+    document.getElementById("login-container").style.display = "none";
+    iniciarApp();
+  } else {
+    alert("Por favor, insira um nome de usuário.");
+  }
+}
+
+function iniciarApp() {
+  const usuario = localStorage.getItem("usuario");
+  if (usuario) {
+    // Exibir boas-vindas
+    alert(`Bem-vindo, ${usuario}!`);
+    carregarProjetos(usuario);  // Carregar apenas os projetos desse usuário
+  }
+}
+
+
+</script>
+<div id="modal-overlay">
+  <div id="modal">
+    <button class="close-btn" onclick="fecharModal()">×</button>
+    <h2>Detalhes do Projeto</h2>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+</body>
+</html>
